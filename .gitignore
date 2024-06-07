@@ -1,7 +1,7 @@
-./01-MinIO-LakeFS/config.py
-./01-MinIO-LakeFS/py2lakefs.py
-./01-MinIO-LakeFS/minio-lakefs.py
-./01-MinIO-LakeFS/data
+01-MinIO-LakeFS/config.py
+01-MinIO-LakeFS/py2lakefs.py
+01-MinIO-LakeFS/minio-lakefs.py
+01-MinIO-LakeFS/data
 
 
 *.csv
