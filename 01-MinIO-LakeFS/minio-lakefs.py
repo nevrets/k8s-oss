@@ -4,6 +4,26 @@ from lakefs_client.client import LakeFSClient
 
 import boto3
 
+from config import CFG
+
+class LakeFS:
+    def __init__(self):
+        self.lakefs_endpoint = CFG.lakefs_endpoint
+        self.lakefs_access_key = CFG.lakefs_access_key    # ID
+        self.lakefs_secret_key = CFG.lakefs_secret_key    # PW
+        
+        self.repository = CFG.repository_name
+        self.bucketname = CFG.bucket_name
+        self.branch = CFG.branch
+    
+        self.auth_header = self.get_auth_header()
+        
+        self.minio_client = boto3.client(
+            CFG.service_name,
+            endpoint_url=CFG.minio_endpoint,
+            aws_access_key_id=CFG.minio_access_key,
+            aws_secret_access_key=CFG.minio_secret_key
+        )
 
 # MinIO credentials and endpoint
 minio_endpoint = 'http://172.7.0.45:30234/'

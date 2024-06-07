@@ -9,8 +9,7 @@ import lakefs_client
 from lakefs_client import models
 from lakefs_client.client import LakeFSClient
 
-import config
-
+from config import CFG
 
 # lakeFS credentials and endpoint
 configuration = lakefs_client.Configuration()
@@ -19,136 +18,155 @@ configuration.password = '6ziXTIJbFa9fwRllPF6Vpz9E0Y7HjfOEJcTkVKt+'
 configuration.host = 'http://172.7.0.45:30300'
 
 
-def connect_lakefs():
-    # minio = connect_minio()
-    client = LakeFSClient(configuration)
-
-    return client
-
-def create_repository(client):
-    try:
-        # Create repository
-        repository_creation = models.RepositoryCreation(name=config.CFG.repository_name, 
-                                                        storage_namespace=f's3://{config.CFG.bucket_name}', 
-                                                        default_branch='main')
+class LakeFS:
+    def __init__(self):
+        self.lakefs_endpoint = CFG.lakefs_endpoint
+        self.lakefs_access_key = CFG.lakefs_access_key    # ID
+        self.lakefs_secret_key = CFG.lakefs_secret_key    # PW
         
-        client.repositories.create_repository(repository_creation)
+        self.repository = CFG.lakefs_repository_name
+        self.bucketname = CFG.lakefs_bucket_name
+        self.branch = CFG.branch
+    
+        self.auth_header = self.get_auth_header()
+        
+        self.minio_client = boto3.client(
+            CFG.service_name,
+            endpoint_url=CFG.minio_endpoint,
+            aws_access_key_id=CFG.minio_access_key,
+            aws_secret_access_key=CFG.minio_secret_key
+        )
 
-        print("Repository created successfully.")
+    def connect_lakefs():
+        # minio = connect_minio()
+        client = LakeFSClient(configuration)
 
-    except lakefs_client.ApiException as e:
-        print("Exception when calling RepositoriesApi->create_repository: %s\n" % e)
+        return client
 
-def get_auth_header(access_key, secret_key):
-    auth_string = f'{access_key}:{secret_key}'
-    return base64.b64encode(auth_string.encode()).decode()
+    def create_repository(client):
+        try:
+            # Create repository
+            repository_creation = models.RepositoryCreation(name=CFG.repository_name, 
+                                                            storage_namespace=f's3://{CFG.bucket_name}', 
+                                                            default_branch='main')
+            
+            client.repositories.create_repository(repository_creation)
 
-def check_and_create_branch(lakefs_endpoint, auth_header, repository, branch):
-    branch_url = f'{lakefs_endpoint}/repositories/{repository}/branches/{branch}'
-    branch_headers = {'Authorization': f'Basic {auth_header}'}
+            print("Repository created successfully.")
 
-    branch_response = requests.get(branch_url, headers=branch_headers)
+        except lakefs_client.ApiException as e:
+            print("Exception when calling RepositoriesApi->create_repository: %s\n" % e)
 
-    if branch_response.status_code == 404:
-        create_branch_url = f'{lakefs_endpoint}/repositories/{repository}/branches'
-        create_branch_payload = {'name': branch, 'source': 'main'}
+    def get_auth_header(access_key, secret_key):
+        auth_string = f'{access_key}:{secret_key}'
+        return base64.b64encode(auth_string.encode()).decode()
 
-        create_branch_response = requests.post(create_branch_url, headers={
-            'Authorization': f'Basic {auth_header}',
-            'Content-Type': 'application/json'
-        }, data=json.dumps(create_branch_payload))
+    def check_and_create_branch(lakefs_endpoint, auth_header, repository, branch):
+        branch_url = f'{lakefs_endpoint}/repositories/{repository}/branches/{branch}'
+        branch_headers = {'Authorization': f'Basic {auth_header}'}
 
-        if create_branch_response.status_code == 201:
-            print(f'Branch {branch} created successfully')
+        branch_response = requests.get(branch_url, headers=branch_headers)
+
+        if branch_response.status_code == 404:
+            create_branch_url = f'{lakefs_endpoint}/repositories/{repository}/branches'
+            create_branch_payload = {'name': branch, 'source': 'main'}
+
+            create_branch_response = requests.post(create_branch_url, headers={
+                'Authorization': f'Basic {auth_header}',
+                'Content-Type': 'application/json'
+            }, data=json.dumps(create_branch_payload))
+
+            if create_branch_response.status_code == 201:
+                print(f'Branch {branch} created successfully')
+            else:
+                print(f'Failed to create branch: {create_branch_response.text}')
+                return False
+            
+        elif branch_response.status_code == 200:
+            print(f'Branch {branch} exists')
+        
         else:
-            print(f'Failed to create branch: {create_branch_response.text}')
+            print(f'Error checking branch: {branch_response.text}')
             return False
         
-    elif branch_response.status_code == 200:
-        print(f'Branch {branch} exists')
-    
-    else:
-        print(f'Error checking branch: {branch_response.text}')
-        return False
-    
-    return True
+        return True
 
 
-def upload_file_to_minio(minio_client, 
-                         bucket_name, 
-                         minio_key, 
-                         file_content):
-    
-    minio_client.put_object(Bucket=bucket_name, 
-                            Key=minio_key, 
-                            Body=file_content)
-    
-    print(f'File uploaded to {bucket_name}/{minio_key}')
-
-
-def register_file_in_lakefs(lakefs_endpoint, 
-                            auth_header, 
-                            repository, 
-                            branch, 
-                            path, 
-                            physical_address, 
+    def upload_file_to_minio(minio_client, 
+                            bucket_name, 
+                            minio_key, 
                             file_content):
-    
-    upload_url = f'{lakefs_endpoint}/repositories/{repository}/branches/{branch}/objects'
-    upload_headers = {
-        'Authorization': f'Basic {auth_header}',
-        'Content-Type': 'application/json'
-    }
-
-    md5_checksum = hashlib.md5(file_content).hexdigest()
-    upload_data = {
-        'physical_address': physical_address,
-        'checksum': md5_checksum,
-        'size_bytes': len(file_content),
-        'content_type': 'application/octet-stream'
-    }
-
-    upload_response = requests.put(upload_url, 
-                                   headers=upload_headers, 
-                                   params={'path': path}, 
-                                   data=json.dumps(upload_data))
-
-    if upload_response.status_code == 201:
-        print('File metadata registered successfully in lakeFS')
         
-    else:
-        print(f'File metadata registration failed: {upload_response.text}')
-        return False
-    
-    return True
-
-
-def commit_to_lakefs(lakefs_endpoint, 
-                     auth_header, 
-                     repository, 
-                     branch):
-    commit_url = f'{lakefs_endpoint}/repositories/{repository}/branches/{branch}/commits'
-    commit_payload = {
-        'message': 'Initial commit'
-    }
-
-    commit_headers = {
-        'Authorization': f'Basic {auth_header}',
-        'Content-Type': 'application/json'
-    }
-
-    commit_response = requests.post(commit_url, 
-                                    headers=commit_headers, 
-                                    data=json.dumps(commit_payload))
-
-    if commit_response.status_code == 201:
-        print('Commit successful')
+        minio_client.put_object(Bucket=bucket_name, 
+                                Key=minio_key, 
+                                Body=file_content)
         
-    else:
-        print(f'Commit failed: {commit_response.text}')
-        return False
-    
-    return True
+        print(f'File uploaded to {bucket_name}/{minio_key}')
+
+
+    def register_file_in_lakefs(lakefs_endpoint, 
+                                auth_header, 
+                                repository, 
+                                branch, 
+                                path, 
+                                physical_address, 
+                                file_content):
+        
+        upload_url = f'{lakefs_endpoint}/repositories/{repository}/branches/{branch}/objects'
+        upload_headers = {
+            'Authorization': f'Basic {auth_header}',
+            'Content-Type': 'application/json'
+        }
+
+        md5_checksum = hashlib.md5(file_content).hexdigest()
+        upload_data = {
+            'physical_address': physical_address,
+            'checksum': md5_checksum,
+            'size_bytes': len(file_content),
+            'content_type': 'application/octet-stream'
+        }
+
+        upload_response = requests.put(upload_url, 
+                                    headers=upload_headers, 
+                                    params={'path': path}, 
+                                    data=json.dumps(upload_data))
+
+        if upload_response.status_code == 201:
+            print('File metadata registered successfully in lakeFS')
+            
+        else:
+            print(f'File metadata registration failed: {upload_response.text}')
+            return False
+        
+        return True
+
+
+    def commit_to_lakefs(lakefs_endpoint, 
+                        auth_header, 
+                        repository, 
+                        branch):
+        commit_url = f'{lakefs_endpoint}/repositories/{repository}/branches/{branch}/commits'
+        commit_payload = {
+            'message': 'Initial commit'
+        }
+
+        commit_headers = {
+            'Authorization': f'Basic {auth_header}',
+            'Content-Type': 'application/json'
+        }
+
+        commit_response = requests.post(commit_url, 
+                                        headers=commit_headers, 
+                                        data=json.dumps(commit_payload))
+
+        if commit_response.status_code == 201:
+            print('Commit successful')
+            
+        else:
+            print(f'Commit failed: {commit_response.text}')
+            return False
+        
+        return True
 
 
 
