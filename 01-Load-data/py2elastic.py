@@ -115,11 +115,18 @@ class Elastic:
             print(f"Failed to create Kibana index pattern: {response.content}")
 
 
-
-if __name__ == '__main__':
-    es = Elastic('test')
+def main():
+    elastic = Elastic('test')
     augment_uuid = str(uuid.uuid4())
+    
     df = pd.read_csv(CFG.object_path)
     df['augment_uuid'] = augment_uuid
     
-    print('')
+    elastic.create_elasticsearch_index(df)
+    elastic.index_data_to_es(df)
+    elastic.create_kibana_index_pattern() 
+
+
+
+if __name__ == '__main__':
+    main()
