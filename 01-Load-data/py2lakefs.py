@@ -1,7 +1,5 @@
-import hashlib
 import base64
 import json
-import boto3
 import requests
 
 import lakefs_client
@@ -21,7 +19,8 @@ class LakeFS:
         self.lakefs_repository_name = CFG.lakefs_repository_name
         self.lakefs_branch_name = CFG.lakefs_branch_name
         
-        # self.auth_header = self.get_auth_header()
+        self.minio_service_name = CFG.minio_service_name
+        self.auth_header = self.get_auth_header()
 
         # lakeFS credentials and endpoint
         self.configuration = lakefs_client.Configuration()
@@ -38,7 +37,7 @@ class LakeFS:
         try:
         # Create repository
             repository_creation = models.RepositoryCreation(name=self.lakefs_repository_name, 
-                                                            storage_namespace=f's3://{self.lakefs_repository_name}', 
+                                                            storage_namespace=f'{self.minio_service_name}://{self.lakefs_repository_name}', 
                                                             default_branch=self.lakefs_branch_name)
             
             client.repositories.create_repository(repository_creation)
@@ -77,6 +76,7 @@ class LakeFS:
             print("Error:", e)
             return None
 
+
     ''' COMMIT LAKEFS '''
     def commit_to_lakefs(self, commit_message):
         commit_url = f'{self.lakefs_endpoint}/repositories/{self.lakefs_repository_name}/branches/{self.lakefs_branch_name}/commits'
@@ -114,3 +114,6 @@ if __name__ == '__main__':
     
     file_content = lakefs.get_lakefs_file_content('data')
     
+    msg = lakefs.commit_to_lakefs('20240610 test')
+    
+    print('')
