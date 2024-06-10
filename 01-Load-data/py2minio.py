@@ -18,10 +18,16 @@ class MinIO:
             aws_secret_access_key=CFG.minio_secret_key
         )
         
+        
     ''' CREATE BUCKET '''
     def create_bucket(self):
-        self.minio_client.create_bucket(Bucket=self.minio_bucket_name)
-        print(f'bucket name: {self.minio_bucket_name}')
+        try:
+            self.minio_client.create_bucket(Bucket=self.minio_bucket_name)
+            print(f'bucket name: {self.minio_bucket_name}')
+            
+        except:
+            print('Already own it')
+            pass
 
 
     ''' UPLOAD OBJECT - 1 '''
@@ -41,7 +47,6 @@ class MinIO:
         print("Objects in bucket:")
         for obj in response.get('Contents', []):
             print(obj['Key'])
-    
     
     
     ''' UPLOAD OBJECT - 2 '''
@@ -64,12 +69,12 @@ class MinIO:
             print(obj['Key'])
 
         
-        
     ''' DOWNLOAD OBJECT '''
     def download_object(self):
         self.minio_client.download_file(CFG.minio_bucket_name,
                                         CFG.minio_object_name, 
                                         CFG.data_path)
+
 
     ''' GET OBJECT '''
     def get_content_in_object(self):
