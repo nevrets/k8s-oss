@@ -7,7 +7,6 @@ import uuid
 from datetime import datetime, timedelta
 from elasticsearch import Elasticsearch, helpers
 
-from py2minio import MinIO
 from config import CFG
 
 
@@ -88,6 +87,7 @@ class Elastic:
         print(start_timestamp, end_timestamp)
         
         return start_timestamp, end_timestamp
+    
     
     # kibana에서 인덱스 패턴 생성
     def create_kibana_index_pattern(self):
