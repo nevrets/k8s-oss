@@ -49,7 +49,7 @@ class MinIO:
             print(obj['Key'])
     
     
-    ''' UPLOAD OBJECT - 2 '''
+    ''' UPLOAD OBJECT2 '''
     def upload_fileobj(self):
         try:
             with open(self.object_path, 'rb') as f:
@@ -68,7 +68,8 @@ class MinIO:
         for obj in response.get('Contents', []):
             print(obj['Key'])
 
-        
+    
+    
     ''' DOWNLOAD OBJECT '''
     def download_object(self):
         self.minio_client.download_file(CFG.minio_bucket_name,
