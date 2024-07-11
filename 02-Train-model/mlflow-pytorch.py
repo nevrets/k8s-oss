@@ -10,34 +10,41 @@ from torchinfo import summary
 from torchmetrics import Accuracy
 from torchvision import datasets
 from torchvision.transforms import ToTensor
-
+from config import CFG
 
 # Set MLflow tracking URI
-os.environ["AWS_ACCESS_KEY_ID"] = "minio"
-os.environ["AWS_SECRET_ACCESS_KEY"] = "minio123"
+os.environ["AWS_ACCESS_KEY_ID"] = CFG.minio_access_key
+os.environ["AWS_SECRET_ACCESS_KEY"] = CFG.minio_secret_key
 
-minio_ip = '172.7.0.45'
-minio_port = '30234'
-
-os.environ['MLFLOW_S3_ENDPOINT_URL'] = f'http://{minio_ip}:{minio_port}'
-
-mlflow.set_tracking_uri('http://172.7.0.45:32677')
-mlflow.set_registry_uri("http://172.7.0.45:32677")
-
-experiment_name = "mlflow_test"
-experiment = mlflow.get_experiment_by_name(experiment_name)
-
-if experiment is None:
-    experiment_id = mlflow.create_experiment(experiment_name)
-    print(f"Created new experiment with ID: {experiment_id}")
-else:
-    experiment_id = experiment.experiment_id
-    print(f"Using existing experiment with ID: {experiment_id}")
-
-mlflow.set_experiment(experiment_name)
+os.environ['MLFLOW_S3_ENDPOINT_URL'] = f'http://{CFG.minio_ip}:{CFG.minio_port}'
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
+
+def get_run_id():
+    mlflow.set_tracking_uri(CFG.mlflow_url)
+    
+    experiment_name = CFG.experiment_name
+    experiment = mlflow.get_experiment_by_name(experiment_name)
+
+    if experiment is None:
+        experiment_id = mlflow.create_experiment(experiment_name)
+        print(f"Created new experiment with ID: {experiment_id}")
+    else:
+        experiment_id = experiment.experiment_id
+        print(f"Using existing experiment with ID: {experiment_id}")
+
+    mlflow.set_experiment(experiment_name)
+        
+    with mlflow.start_run(run_name=experiment_name) as run:
+        run_id = run.info.run_id
+        print(run_id)
+        
+    mlflow.end_run()
+    
+    experiment_url = f'{CFG.mlflow_url}/#/experiments/{experiment_id}/runs/{run_id}'
+    
+    return experiment_id, run_id, experiment_url
 
 
 class NeuralNetwork(nn.Module):
@@ -78,13 +85,10 @@ def train(data_loader, model, loss_fn, metrics_fn, optimizer):
             loss, current = loss.item(), batch
             mlflow.log_metric("loss", f"{loss:.3f}", step=(batch // 100))
             mlflow.log_metric("accuracy", f"{accuracy:3f}", step=(batch // 100))
-            print(
-                f"loss: {loss:3f} accuracy: {accuracy:3f} [{current} / {len(data_loader)}]"
-            )
+            print(f"loss: {loss:3f} accuracy: {accuracy:3f} [{current} / {len(data_loader)}]")
 
 
 def main():
-
     # Download training data from open datasets.
     train_data = datasets.FashionMNIST(
         root="./02-Train-model/data",
@@ -101,7 +105,13 @@ def main():
     model = NeuralNetwork().to(device)
     optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
 
-    with mlflow.start_run(run_name="mlflow_test") as run:
+    experiment_id, run_id, experiment_url = get_run_id()
+    print(experiment_id)
+    print(experiment_url)
+    
+    with mlflow.start_run(run_id=run_id, run_name=CFG.experiment_name) as run:
+        run_id = run.info.run_id
+        
         params = {
             "epochs": epochs,
             "learning_rate": 1e-3,
@@ -123,7 +133,6 @@ def main():
         for t in range(epochs):
             print(f"Epoch {t+1}\n-------------------------------")
             train(train_dataloader, model, loss_fn, metric_fn, optimizer)
-
 
         # Save the trained model to MLflow.
         mlflow.pytorch.log_model(model, "model")
