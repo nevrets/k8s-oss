@@ -35,13 +35,14 @@ def get_run_id():
         print(f"Using existing experiment with ID: {experiment_id}")
 
     mlflow.set_experiment(experiment_name)
-        
-    with mlflow.start_run(run_name=experiment_name) as run:
-        run_id = run.info.run_id
-        print(run_id)
-        
-    mlflow.end_run()
     
+    # with ~ as 구문은 end_run()이 없어도 자동 종료    
+    # with mlflow.start_run(run_name=experiment_name) as run:
+        # run_id = run.info.run_id
+        # print(run_id)
+        
+    run_id = mlflow.start_run(run_name=experiment_name).info.run_id
+
     experiment_url = f'{CFG.mlflow_url}/#/experiments/{experiment_id}/runs/{run_id}'
     
     return experiment_id, run_id, experiment_url
@@ -109,7 +110,7 @@ def main():
     print(experiment_id)
     print(experiment_url)
     
-    with mlflow.start_run(run_id=run_id, run_name=CFG.experiment_name) as run:
+    with mlflow.start_run(run_id=run_id, run_name=CFG.experiment_name, nested=True) as run:
         run_id = run.info.run_id
         
         params = {
